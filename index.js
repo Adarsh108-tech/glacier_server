@@ -66,8 +66,9 @@ const News = mongoose.model("News", newsSchema);
 // ==================
 async function fetchNews() {
   try {
+    // 🔍 Focus only on glaciers & ice sheets
     const query =
-      '"glacier" OR "glacier melting" OR "melting glaciers" OR "ice sheets" OR "climate change" OR "nature"';
+      '"glacier" OR "glacier melting" OR "melting glaciers" OR "ice sheets" OR "retreating glaciers"';
 
     const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(
       query
@@ -78,10 +79,27 @@ async function fetchNews() {
     console.log("📡 Fetched from GNews:", data.totalArticles || data);
 
     if (data.articles && data.articles.length > 0) {
-      // Clear old news before inserting new ones
-      await News.deleteMany({});
-      await News.insertMany(data.articles);
-      console.log("✅ Glacier News updated at:", new Date().toLocaleString());
+      // ✅ Filter out unrelated articles (must mention glacier/ice)
+      const filtered = data.articles.filter((article) => {
+        const text =
+          (article.title || "" + " " + article.description || "").toLowerCase();
+        return (
+          text.includes("glacier") ||
+          text.includes("ice") ||
+          text.includes("ice sheet")
+        );
+      });
+
+      if (filtered.length > 0) {
+        await News.deleteMany({});
+        await News.insertMany(filtered);
+        console.log(
+          `✅ Stored ${filtered.length} glacier articles at:`,
+          new Date().toLocaleString()
+        );
+      } else {
+        console.log("⚠️ No glacier-related news after filtering.");
+      }
     } else {
       console.log("⚠️ No glacier-related news found this time.");
     }
