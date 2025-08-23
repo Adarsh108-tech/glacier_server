@@ -1,13 +1,34 @@
-// server.js
 import express from "express";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
 import mongoose from "mongoose";
+import cors from "cors";   // ✅ add this
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// ==================
+// Enable CORS
+// ==================
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://the-voice-of-glacier-vti4.vercel.app",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 
 // ==================
 // MongoDB Connection
