@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 5000;
 // ==================
 // MongoDB Connection
 // ==================
-const mongoURI = `mongodb+srv://${process.env.DB_NAME}:${process.env.DB_PASSWORD}@cluster0.mongodb.net/newsdb?retryWrites=true&w=majority`;
+const mongoURI = `mongodb+srv://${process.env.DB_NAME}:${process.env.DB_PASSWORD}@cluster0.zetsr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 mongoose.connect(mongoURI, {
   useNewUrlParser: true,
@@ -47,7 +47,7 @@ async function fetchNews() {
     const url = `https://newsapi.org/v2/everything?q=tesla&from=2025-07-23&sortBy=publishedAt&pageSize=50&apiKey=${process.env.API_KEY}`;
     const response = await fetch(url);
     const data = await response.json();
-
+    console.log(data);
     if (data.articles && data.articles.length > 0) {
       // Clear old news before inserting new ones
       await News.deleteMany({});
