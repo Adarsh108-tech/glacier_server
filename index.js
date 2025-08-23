@@ -65,7 +65,9 @@ const News = mongoose.model("News", newsSchema);
 // ==================
 async function fetchNews() {
   try {
-    const url = `https://newsapi.org/v2/everything?q=glacier OR glaciers OR "ice melt" OR "climate change"&language=en&from=2025-07-23&sortBy=publishedAt&pageSize=50&apiKey=${process.env.API_KEY}`;
+    const url = `https://newsapi.org/v2/everything?q=("glacier" OR "glacier melting" OR "melting glaciers" OR "ice sheets" OR "climate change" OR "nature")&language=en&sortBy=publishedAt&pageSize=50&apiKey=${process.env.API_KEY}`;
+
+
     
     const response = await fetch(url);
     const data = await response.json();
