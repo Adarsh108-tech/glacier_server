@@ -1,8 +1,9 @@
+// server.js
 import express from "express";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
 import mongoose from "mongoose";
-import cors from "cors";   // ✅ add this
+import cors from "cors";
 
 dotenv.config();
 
@@ -53,7 +54,7 @@ const newsSchema = new mongoose.Schema({
   title: String,
   description: String,
   url: String,
-  urlToImage: String,
+  image: String,
   publishedAt: Date,
   content: String,
 });
@@ -61,23 +62,28 @@ const newsSchema = new mongoose.Schema({
 const News = mongoose.model("News", newsSchema);
 
 // ==================
-// Fetch News Function
+// Fetch News Function (GNews API)
 // ==================
 async function fetchNews() {
   try {
-    const url = `https://newsapi.org/v2/everything?q=("glacier" OR "glacier melting" OR "melting glaciers" OR "ice sheets" OR "climate change" OR "nature")&language=en&sortBy=publishedAt&pageSize=50&apiKey=${process.env.API_KEY}`;
+    const query =
+      '"glacier" OR "glacier melting" OR "melting glaciers" OR "ice sheets" OR "climate change" OR "nature"';
 
+    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(
+      query
+    )}&lang=en&max=50&topic=science&apikey=${process.env.API_KEY}`;
 
-    
     const response = await fetch(url);
     const data = await response.json();
-    console.log(data);
-    
+    console.log("📡 Fetched from GNews:", data.totalArticles || data);
+
     if (data.articles && data.articles.length > 0) {
       // Clear old news before inserting new ones
       await News.deleteMany({});
       await News.insertMany(data.articles);
       console.log("✅ Glacier News updated at:", new Date().toLocaleString());
+    } else {
+      console.log("⚠️ No glacier-related news found this time.");
     }
 
     return data;
