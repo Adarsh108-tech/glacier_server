@@ -65,21 +65,23 @@ const News = mongoose.model("News", newsSchema);
 // ==================
 async function fetchNews() {
   try {
-    const url = `https://newsapi.org/v2/everything?q=tesla&from=2025-07-23&sortBy=publishedAt&pageSize=50&apiKey=${process.env.API_KEY}`;
+    const url = `https://newsapi.org/v2/everything?q=glacier OR glaciers OR "ice melt" OR "climate change"&language=en&from=2025-07-23&sortBy=publishedAt&pageSize=50&apiKey=${process.env.API_KEY}`;
+    
     const response = await fetch(url);
     const data = await response.json();
     console.log(data);
+    
     if (data.articles && data.articles.length > 0) {
       // Clear old news before inserting new ones
       await News.deleteMany({});
       await News.insertMany(data.articles);
-      console.log("✅ News updated at:", new Date().toLocaleString());
+      console.log("✅ Glacier News updated at:", new Date().toLocaleString());
     }
 
     return data;
   } catch (error) {
-    console.error("❌ Error fetching news:", error);
-    return { error: "Failed to fetch news" };
+    console.error("❌ Error fetching glacier news:", error);
+    return { error: "Failed to fetch glacier news" };
   }
 }
 
