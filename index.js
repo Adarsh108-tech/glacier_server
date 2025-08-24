@@ -94,7 +94,7 @@ const News = mongoose.model("News", newsSchema);
 async function fetchNews() {
   try {
     const query =
-      '"glacier" OR "glacier melting" OR "melting glaciers" OR "ice sheets" OR "climate change" OR "nature"';
+      '"glacier" OR "glacial" OR "enviromental" OR "ice-sheets" OR "climate-change" OR "nature"';
 
     const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(
       query
