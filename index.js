@@ -93,7 +93,8 @@ const News = mongoose.model("News", newsSchema);
 // ==================
 async function fetchNews() {
   try {
-    const query = '"glacier" OR "glacial" OR "mountain" OR "water"';
+    const query = '"glacier" OR "climate change" OR "sustainability" OR "biodiversity" OR "forest" OR "water scarcity" OR "wildlife" OR "renewable energy" OR "pollution" OR "ecosystem"';
+
 
     const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(
       query
@@ -107,8 +108,9 @@ async function fetchNews() {
       // Apply stricter post-filter (check in title + description)
       const filteredArticles = data.articles.filter(
         (a) =>
-          /glacier|glacial|mountain|water/i.test(a.title) ||
-          /glacier|glacial|mountain|water/i.test(a.description)
+          /glacier|glacial|mountain|water|climate|environment|sustainability|eco|conservation|biodiversity|green|renewable|carbon|forest|ocean|pollution|wildlife/i.test(a.title) ||
+/glacier|glacial|mountain|water|climate|environment|sustainability|eco|conservation|biodiversity|green|renewable|carbon|forest|ocean|pollution|wildlife/i.test(a.description)
+
       );
 
       if (filteredArticles.length > 0) {
