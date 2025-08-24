@@ -1,31 +1,30 @@
-// server.js
 import express from "express";
 import dotenv from "dotenv";
-import fetch from "node-fetch";
 import mongoose from "mongoose";
 import cors from "cors";
+import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
 
 dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // ==================
-// Enable CORS
+// CORS
 // ==================
 const allowedOrigins = [
   "http://localhost:3000",
   "https://the-voice-of-glacier-vti4.vercel.app",
 ];
-
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
+      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+      else callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
   })
@@ -34,112 +33,112 @@ app.use(
 // ==================
 // MongoDB Connection
 // ==================
-const mongoURI = `mongodb+srv://${process.env.DB_NAME}:${process.env.DB_PASSWORD}@cluster0.zetsr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-
-mongoose.connect(mongoURI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-
+mongoose.connect(
+  `mongodb+srv://${process.env.DB_NAME}:${process.env.DB_PASSWORD}@cluster0.zetsr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`,
+  { useNewUrlParser: true, useUnifiedTopology: true }
+);
 const db = mongoose.connection;
 db.on("error", console.error.bind(console, "❌ MongoDB connection error:"));
 db.once("open", () => console.log("✅ MongoDB connected"));
 
 // ==================
-// Schema + Model
+// Cloudinary Setup
 // ==================
-const newsSchema = new mongoose.Schema({
-  source: Object,
-  author: String,
-  title: String,
-  description: String,
-  url: String,
-  image: String,
-  publishedAt: Date,
-  content: String,
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const News = mongoose.model("News", newsSchema);
+// Multer + Cloudinary storage
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "blogs",
+    allowed_formats: ["jpg", "png", "jpeg", "mp4", "mov", "avi"], // image/video
+  },
+});
+
+const parser = multer({ storage });
 
 // ==================
-// Fetch News Function (GNews API)
+// Blog Schema + Model
 // ==================
-async function fetchNews() {
-  try {
-    // 🔍 Focus only on glaciers & ice sheets
-    const query =
-      '"glacier" OR "glacier melting" OR "melting glaciers" OR "ice sheets" OR "retreating glaciers"';
+const blogSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  description: { type: String, required: true },
+  mediaUrl: { type: String, required: true }, // Cloudinary URL
+  mediaType: { type: String, enum: ["image", "video"], required: true },
+  createdAt: { type: Date, default: Date.now },
+});
 
-    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(
-      query
-    )}&lang=en&max=50&topic=science&apikey=${process.env.API_KEY}`;
-
-    const response = await fetch(url);
-    const data = await response.json();
-    console.log("📡 Fetched from GNews:", data.totalArticles || data);
-
-    if (data.articles && data.articles.length > 0) {
-      // ✅ Filter out unrelated articles (must mention glacier/ice)
-      const filtered = data.articles.filter((article) => {
-        const text =
-          (article.title || "" + " " + article.description || "").toLowerCase();
-        return (
-          text.includes("glacier") ||
-          text.includes("ice") ||
-          text.includes("ice sheet")
-        );
-      });
-
-      if (filtered.length > 0) {
-        await News.deleteMany({});
-        await News.insertMany(filtered);
-        console.log(
-          `✅ Stored ${filtered.length} glacier articles at:`,
-          new Date().toLocaleString()
-        );
-      } else {
-        console.log("⚠️ No glacier-related news after filtering.");
-      }
-    } else {
-      console.log("⚠️ No glacier-related news found this time.");
-    }
-
-    return data;
-  } catch (error) {
-    console.error("❌ Error fetching glacier news:", error);
-    return { error: "Failed to fetch glacier news" };
-  }
-}
-
-// ==================
-// Schedule fetch
-// ==================
-setInterval(fetchNews, 3 * 60 * 60 * 1000); // Every 3 hours
-fetchNews(); // Initial fetch
+const Blog = mongoose.model("Blog", blogSchema);
 
 // ==================
 // Routes
 // ==================
 
-// Get all stored news (from DB)
-app.get("/news", async (req, res) => {
+// Store a blog
+// Single file (image/video) under field "media"
+app.post("/storeBlog", parser.single("media"), async (req, res) => {
   try {
-    const articles = await News.find({});
-    res.json({ articles });
+    const { title, description } = req.body;
+
+    if (!req.file) return res.status(400).json({ error: "Media file required" });
+
+    const mediaUrl = req.file.path;
+    const mediaType = req.file.mimetype.startsWith("video") ? "video" : "image";
+
+    const blog = new Blog({ title, description, mediaUrl, mediaType });
+    await blog.save();
+
+    res.status(201).json({ message: "Blog stored successfully", blog });
   } catch (err) {
-    res.status(500).json({ error: "Failed to retrieve news" });
+    console.error(err);
+    res.status(500).json({ error: "Failed to store blog" });
   }
 });
 
-// Fetch fresh news directly & update DB
-app.get("/fetch-news", async (req, res) => {
-  const freshData = await fetchNews();
-  res.json(freshData);
+// Get all blogs
+app.get("/getBlog", async (req, res) => {
+  try {
+    const blogs = await Blog.find({}).sort({ createdAt: -1 });
+    res.json({ blogs });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to retrieve blogs" });
+  }
 });
 
-// ==================
-// Start server
-// ==================
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+// Delete a blog by ID
+app.delete("/deleteBlog/:id", async (req, res) => {
+  try {
+    const blogId = req.params.id;
+
+    // Find the blog first
+    const blog = await Blog.findById(blogId);
+    if (!blog) return res.status(404).json({ error: "Blog not found" });
+
+    // Extract the public ID from the mediaUrl for Cloudinary deletion
+    // Example URL: https://res.cloudinary.com/<cloud_name>/image/upload/v1690000000/blogs/<filename>.jpg
+    const urlParts = blog.mediaUrl.split("/");
+    const publicIdWithExtension = urlParts.slice(-1)[0]; // e.g., <filename>.jpg
+    const publicId = `blogs/${publicIdWithExtension.split(".")[0]}`;
+
+    // Delete from Cloudinary
+    await cloudinary.uploader.destroy(publicId, { resource_type: blog.mediaType });
+
+    // Delete from MongoDB
+    await Blog.findByIdAndDelete(blogId);
+
+    res.json({ message: "Blog deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete blog" });
+  }
 });
+
+
+// ==================
+// Start Server
+// ==================
+app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
