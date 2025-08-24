@@ -93,31 +93,46 @@ const News = mongoose.model("News", newsSchema);
 // ==================
 async function fetchNews() {
   try {
-    const query =
-      '"glacier" OR "glacial" OR "enviromental" OR "ice-sheets" OR "climate-change" OR "nature"';
+    const query = '"glacier" OR "glacial" OR "mountain" OR "water"';
 
     const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(
       query
-    )}&lang=en&max=50&topic=science&apikey=${process.env.API_KEY}`;
+    )}&in=title&lang=en&max=50&topic=science&apikey=${process.env.API_KEY}`;
 
     const response = await fetch(url);
     const data = await response.json();
     console.log("📡 Fetched from GNews:", data.totalArticles || data);
 
     if (data.articles && data.articles.length > 0) {
-      // Clear old news
-      await News.deleteMany({});
-      // Insert formatted news
-      const formattedArticles = data.articles.map((a) => ({
-        title: a.title,
-        description: a.description,
-        url: a.url,
-        urlToImage: a.image, // GNews uses "image"
-        publishedAt: a.publishedAt,
-        source: a.source,
-      }));
-      await News.insertMany(formattedArticles);
-      console.log("✅ Glacier News updated at:", new Date().toLocaleString());
+      // Apply stricter post-filter (check in title + description)
+      const filteredArticles = data.articles.filter(
+        (a) =>
+          /glacier|glacial|mountain|water/i.test(a.title) ||
+          /glacier|glacial|mountain|water/i.test(a.description)
+      );
+
+      if (filteredArticles.length > 0) {
+        // Clear old news
+        await News.deleteMany({});
+
+        // Insert formatted news
+        const formattedArticles = filteredArticles.map((a) => ({
+          title: a.title,
+          description: a.description,
+          url: a.url,
+          urlToImage: a.image, // GNews uses "image"
+          publishedAt: a.publishedAt,
+          source: a.source,
+        }));
+
+        await News.insertMany(formattedArticles);
+        console.log(
+          `✅ Glacier News updated (${formattedArticles.length} articles) at:`,
+          new Date().toLocaleString()
+        );
+      } else {
+        console.log("⚠️ No strictly glacier-related news after filtering.");
+      }
     } else {
       console.log("⚠️ No glacier-related news found this time.");
     }
@@ -125,6 +140,8 @@ async function fetchNews() {
     console.error("❌ Error fetching glacier news:", error);
   }
 }
+
+
 
 // Schedule auto-fetch every 3 hours + initial fetch
 setInterval(fetchNews, 3 * 60 * 60 * 1000);
