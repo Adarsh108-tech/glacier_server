@@ -59,7 +59,6 @@ const storage = new CloudinaryStorage({
     allowed_formats: ["jpg", "png", "jpeg", "mp4", "mov", "avi"], // image/video
   },
 });
-
 const parser = multer({ storage });
 
 // ==================
@@ -72,19 +71,73 @@ const blogSchema = new mongoose.Schema({
   mediaType: { type: String, enum: ["image", "video"], required: true },
   createdAt: { type: Date, default: Date.now },
 });
-
 const Blog = mongoose.model("Blog", blogSchema);
+
+// ==================
+// News Schema + Model
+// ==================
+const newsSchema = new mongoose.Schema({
+  title: String,
+  description: String,
+  url: String,
+  urlToImage: String,
+  publishedAt: Date,
+  source: {
+    name: String,
+  },
+});
+const News = mongoose.model("News", newsSchema);
+
+// ==================
+// Fetch Glacier News from GNews
+// ==================
+async function fetchNews() {
+  try {
+    const query =
+      '"glacier" OR "glacier melting" OR "melting glaciers" OR "ice sheets" OR "climate change" OR "nature"';
+
+    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(
+      query
+    )}&lang=en&max=50&topic=science&apikey=${process.env.API_KEY}`;
+
+    const response = await fetch(url);
+    const data = await response.json();
+    console.log("📡 Fetched from GNews:", data.totalArticles || data);
+
+    if (data.articles && data.articles.length > 0) {
+      // Clear old news
+      await News.deleteMany({});
+      // Insert formatted news
+      const formattedArticles = data.articles.map((a) => ({
+        title: a.title,
+        description: a.description,
+        url: a.url,
+        urlToImage: a.image, // GNews uses "image"
+        publishedAt: a.publishedAt,
+        source: a.source,
+      }));
+      await News.insertMany(formattedArticles);
+      console.log("✅ Glacier News updated at:", new Date().toLocaleString());
+    } else {
+      console.log("⚠️ No glacier-related news found this time.");
+    }
+  } catch (error) {
+    console.error("❌ Error fetching glacier news:", error);
+  }
+}
+
+// Schedule auto-fetch every 3 hours + initial fetch
+setInterval(fetchNews, 3 * 60 * 60 * 1000);
+fetchNews();
 
 // ==================
 // Routes
 // ==================
 
 // Store a blog
-// Single file (image/video) under field "media"
 app.post("/storeBlog", parser.single("media"), async (req, res) => {
   try {
     const { title, description } = req.body;
-
     if (!req.file) return res.status(400).json({ error: "Media file required" });
 
     const mediaUrl = req.file.path;
@@ -114,21 +167,14 @@ app.get("/getBlog", async (req, res) => {
 app.delete("/deleteBlog/:id", async (req, res) => {
   try {
     const blogId = req.params.id;
-
-    // Find the blog first
     const blog = await Blog.findById(blogId);
     if (!blog) return res.status(404).json({ error: "Blog not found" });
 
-    // Extract the public ID from the mediaUrl for Cloudinary deletion
-    // Example URL: https://res.cloudinary.com/<cloud_name>/image/upload/v1690000000/blogs/<filename>.jpg
     const urlParts = blog.mediaUrl.split("/");
-    const publicIdWithExtension = urlParts.slice(-1)[0]; // e.g., <filename>.jpg
+    const publicIdWithExtension = urlParts.slice(-1)[0];
     const publicId = `blogs/${publicIdWithExtension.split(".")[0]}`;
 
-    // Delete from Cloudinary
     await cloudinary.uploader.destroy(publicId, { resource_type: blog.mediaType });
-
-    // Delete from MongoDB
     await Blog.findByIdAndDelete(blogId);
 
     res.json({ message: "Blog deleted successfully" });
@@ -138,6 +184,16 @@ app.delete("/deleteBlog/:id", async (req, res) => {
   }
 });
 
+// Get all glacier news
+app.get("/news", async (req, res) => {
+  try {
+    const news = await News.find({}).sort({ publishedAt: -1 });
+    res.json({ articles: news });
+  } catch (err) {
+    console.error("❌ Failed to fetch news from DB:", err);
+    res.status(500).json({ error: "Failed to fetch news" });
+  }
+});
 
 // ==================
 // Start Server
