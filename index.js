@@ -19,7 +19,8 @@ app.use(express.urlencoded({ extended: true }));
 const allowedOrigins = [
   "http://localhost:3000",
   "https://the-voice-of-glacier-vti4.vercel.app",
-  "https://glacier-admin-panel.vercel.app"
+  "https://glacier-admin-panel.vercel.app",
+  "https://thevoiceofglaciers.org"
 ];
 app.use(
   cors({
